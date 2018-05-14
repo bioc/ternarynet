@@ -101,12 +101,151 @@ of four key parameters:
 plotTraces(tnfit)
 @ 
 
+\subsection{Parallel fit}
+
+The \texttt{parallelFit} function uses the replica exchange algorithm.  
+The function takes the following arguments:
+\begin{description}
+    \item[\texttt{experiment\_set}]data frame containing five columns: 
+        \begin{description}
+            \item[\texttt{i\_exp}] an experiment index:
+                an integer from 0 to $N_{\textrm{exp}}-1$,
+                where $N_{\textrm{exp}}$ is the number of experiments.
+            \item[\texttt{i\_node}] a node index: an integer from
+                0 to $N_{\textrm{node}}-1$,
+                where $N_{\textrm{node}}$ is the number of nodes.
+            \item[\texttt{outcome}] a value of -1, 0, or +1, denoting a
+                particular outcome for
+                that node in that experiment
+            \item[\texttt{value}] a cost for obtaining that outcome.
+                For instance, if the cost function
+                is the Hamming distance, and the observed outcome is +1,
+                the cost would be would be +2, +1, or 0 for an 
+                outcome of -1, 0, or +1, respectively.
+            \item[\texttt{is\_perturbation}] a Boolean value 
+                (or a value of 0/1) denoting whether this 
+                outcome is due to an applied perturbation or not.
+        \end{description}
+    \item[\texttt{max\_parents}]maximum number of parents 
+                                allowed for each node
+    \item[\texttt{n\_cycles}]maximum number of Monte Carlo cycles
+    \item[\texttt{n\_write}]number of times to write output during the run
+    \item[\texttt{T\_lo}]T for lowest-temperature replica
+    \item[\texttt{T\_h}]T for highest-temperature replica
+    \item[\texttt{target\_score}] run will terminate if this is reached
+    \item[\texttt{n\_proc}]number of replicas
+    \item[\texttt{logfile}]filename for log file
+    \item[\texttt{seed}]seed for random number generator
+\end{description}
+
+The return value is a list with an element for each replica.  Each
+element is itself a list of the best unnormalized score, normalized
+score (unnormalized score divided by product of number of nodes and
+number of experiments), list of parents for each node, and array
+describing the transition rule, giving the outcome of a node for each
+possible configuration of parent nodes.
+
+\subsubsection{Example}
+
+The following shows a subset of the simple model regulatory network
+given in Example 1 of Reference 1 (nodes 1-4 only).  There are four
+nodes and eight experiments (the first four rows of Table 4).  
+The cost function for each possible outcome is the Hamming distance 
+with the observed steady-state outcome, given a persistent perturbation.
+The output corresponds with the parents and transitions described on page 13
+of Reference 1.
+
+<<echo=T>>=
+
+library(ternarynet)
+
+i_exp <- as.integer(c(0,0,0, 0,0,0, 0,0,0, 0,0,0,
+                        1,1,1, 1,1,1, 1,1,1, 1,1,1,
+                        2,2,2, 2,2,2, 2,2,2, 2,2,2,
+                        3,3,3, 3,3,3, 3,3,3, 3,3,3,
+                        4,4,4, 4,4,4, 4,4,4, 4,4,4,
+                        5,5,5, 5,5,5, 5,5,5, 5,5,5,
+                        6,6,6, 6,6,6, 6,6,6, 6,6,6,
+                        7,7,7, 7,7,7, 7,7,7, 7,7,7))
+
+i_node <- as.integer(c(0,0,0, 1,1,1, 2,2,2, 3,3,3,
+                        0,0,0, 1,1,1, 2,2,2, 3,3,3,
+                        0,0,0, 1,1,1, 2,2,2, 3,3,3,
+                        0,0,0, 1,1,1, 2,2,2, 3,3,3,
+                        0,0,0, 1,1,1, 2,2,2, 3,3,3,
+                        0,0,0, 1,1,1, 2,2,2, 3,3,3,
+                        0,0,0, 1,1,1, 2,2,2, 3,3,3,
+                        0,0,0, 1,1,1, 2,2,2, 3,3,3))
+
+outcome <- as.integer(c(-1,0,1, -1,0,1, -1,0,1, -1,0,1,
+                        -1,0,1, -1,0,1, -1,0,1, -1,0,1,
+                        -1,0,1, -1,0,1, -1,0,1, -1,0,1,
+                        -1,0,1, -1,0,1, -1,0,1, -1,0,1,
+                        -1,0,1, -1,0,1, -1,0,1, -1,0,1,
+                        -1,0,1, -1,0,1, -1,0,1, -1,0,1,
+                        -1,0,1, -1,0,1, -1,0,1, -1,0,1,
+                        -1,0,1, -1,0,1, -1,0,1, -1,0,1))
+
+value <- c(0,1,2, 0,1,2, 0,1,2, 0,1,2,
+            2,1,0, 0,1,2, 0,1,2, 0,1,2,
+            2,1,0, 2,1,0, 0,1,2, 0,1,2,
+            2,1,0, 2,1,0, 2,1,0, 0,1,2,
+            2,1,0, 2,1,0, 2,1,0, 2,1,0,
+            0,1,2, 2,1,0, 2,1,0, 2,1,0,
+            0,1,2, 0,1,2, 2,1,0, 2,1,0,
+            0,1,2, 0,1,2, 0,1,2, 2,1,0)
+
+is_perturbation <- 
+c(TRUE,TRUE,TRUE,  FALSE,FALSE,FALSE, FALSE,FALSE,FALSE, FALSE,FALSE,FALSE,
+    FALSE,FALSE,FALSE,  TRUE,TRUE,TRUE, FALSE,FALSE,FALSE, FALSE,FALSE,FALSE,
+    FALSE,FALSE,FALSE,  FALSE,FALSE,FALSE, TRUE,TRUE,TRUE, FALSE,FALSE,FALSE,
+    FALSE,FALSE,FALSE,  FALSE,FALSE,FALSE, FALSE,FALSE,FALSE, TRUE,TRUE,TRUE,
+    TRUE,TRUE,TRUE,  FALSE,FALSE,FALSE, FALSE,FALSE,FALSE, FALSE,FALSE,FALSE,
+    FALSE,FALSE,FALSE,  TRUE,TRUE,TRUE, FALSE,FALSE,FALSE, FALSE,FALSE,FALSE,
+    FALSE,FALSE,FALSE,  FALSE,FALSE,FALSE, TRUE,TRUE,TRUE, FALSE,FALSE,FALSE,
+    FALSE,FALSE,FALSE,  FALSE,FALSE,FALSE, FALSE,FALSE,FALSE, TRUE,TRUE,TRUE)
+
+indata <- data.frame(i_exp,i_node,outcome,value,is_perturbation)
+
+results <- parallelFit(indata,
+                        max_parents=1,
+                        n_cycles=100000,
+                        n_write=10,
+                        T_lo=0.001,
+                        T_hi=2.0,
+                        target_score=0,
+                        n_proc=3,
+                        logfile='try.log',
+                        seed=1234)
+
+lowest_temp_results <- results[[1]]
+
+print('Unnormalized score:')
+print(lowest_temp_results$unnormalized_score)
+
+print('Normalized score:')
+print(lowest_temp_results$normalized_score)
+
+print('Parents:')
+print(lowest_temp_results$parents)
+
+print('Outcomes:')
+print(lowest_temp_results$outcomes)
+
+@
+
+
+
 \subsection{Posterior Sampling}
 Once we have fit the ternary network model, we can sample from the
 posterior density on the model space:
 <<echo=T,results=hide>>=
 tnpost <- tnetpost(tnfit, xSeed=11235)
 @ 
+
+
+
+
 
 \subsection{Summary Results}
 The ternaryPosterior object contains a wealth of information that can

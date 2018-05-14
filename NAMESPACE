@@ -3,7 +3,7 @@ useDynLib("ternarynet")
 importFrom(utils, citation, toBibtex)
 importFrom(igraph, graph.edgelist, plot.igraph, tkplot)
 
-export(tnetfit,tnetpost,ternaryFit,ternaryFitParameters,ternaryPost,graphPosterior,attractorSummary,plotTraces,plotFit,plotPost,predictAttractor,simulateSteadyState)
+export(tnetfit,tnetpost,ternaryFit,ternaryFitParameters,ternaryPost,graphPosterior,attractorSummary,plotTraces,plotFit,plotPost,predictAttractor,simulateSteadyState,parallelFit)
 
 exportClasses(ternaryFitParameters,ternaryFit,ternaryPost)
 
