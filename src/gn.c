@@ -6,11 +6,12 @@
 
 #include "array.h"
 
-#define ADJUST_MOVE_SIZE_INTERVAL 7001
-#define EXCHANGE_INTERVAL 1000
-
 #ifdef USE_MPI
 #include <mpi.h>
+#endif
+
+#ifdef _OPENMP
+#include <omp.h>
 #endif
 
 #include "util.h"
@@ -53,23 +54,27 @@ static char sym_from_state(int s)
   return 0;
 }
 
-static void read_line(FILE *f, char *buf, int n)
+static int random_outcome()
 {
-  if (!fgets(buf, n, f))
-    die("read_line: unexpected end of file");
-  if (strlen(buf) >= n)
-    die("read_line: line too long");
+  return random_int_inclusive(-1,1);
 }
 
-static double uniform_random_from_0_to_1_exclusive()
+static int random_parent(int i, int n_node, int n_parent, const int *p)
 {
-  /* return (double) random() / ((double) RAND_MAX + 1.0); */
-  return unif_rand();
-}
-
-static int random_int_inclusive(int a, int b)
-{
-  return (int) floor((b-a+1)*uniform_random_from_0_to_1_exclusive()) + a;
+  int k;
+  for (k = 0; k < 10000000; k++) {
+    const int pnew = random_int_inclusive(0, n_node-1);
+    if (pnew != i) {
+      int j;
+      for (j = 0; j < n_parent; j++)
+        if (pnew == p[j])
+          break;
+      if (j == n_parent)
+        return pnew;
+    }
+  }
+  die("random_parent: whoops");
+  return 0;
 }
 
 #define MAX_LINE (1024 + MAX_NODES)
@@ -91,15 +96,67 @@ void network_init(network_t n, int n_node, int max_parents)
   n->n_outcome = three_to_the(max_parents);
   n->parent = int_array2D_new(n->n_node, n->n_parent);
   n->outcome = int_array2D_new(n->n_node, n->n_outcome);
+}
+
+void network_randomize_parents(network_t n)
+{
   int i;
-  for (i = 0; i < n_node; i++) {
+  for (i = 0; i < n->n_node; i++) {
     int j;
     for (j = 0; j < n->n_parent; j++)
-      n->parent[i][j] = (i+j+1)%n_node;
+      n->parent[i][j] = random_parent(i, n->n_node, j, n->parent[i]);
+    qsort(&n->parent[i][0], n->n_parent, sizeof(int), intcmp);
+  }
+}
+
+void network_set_outcomes_to_null(network_t n)
+{
+  int i;
+  for (i = 0; i < n->n_node; i++) {
+    int j;
     for (j = 0; j < n->n_outcome; j++)
       n->outcome[i][j] = state_from_sym('.');
   }
-}  
+}
+
+void network_randomize_outcomes(network_t n)
+{
+  int i;
+  for (i = 0; i < n->n_node; i++) {
+    int j;
+    for (j = 0; j < n->n_outcome; j++)
+      n->outcome[i][j] = random_outcome();
+  }
+}
+
+void network_write_to_intp(const network_t n, int *parent, int *outcome)
+{
+  int i, j;
+  for (i = 0; i < n->n_node; i++)
+    for (j = 0; j < n->n_parent; j++)
+      parent[j*n->n_node+i] = n->parent[i][j];
+  for (i = 0; i < n->n_node; i++) {
+    int k;
+    for (k = 0; k < n->n_outcome; k++)
+      outcome[k*n->n_node+i] = n->outcome[i][k];
+  }  
+}
+
+void network_read_parents_from_intp(network_t n, const int *parents)
+{
+  int i, j;
+  for (i = 0; i < n->n_node; i++)
+    for (j = 0; j < n->n_parent; j++)
+      n->parent[i][j] = parents[j*n->n_node+i];
+}
+
+void network_read_outcomes_from_intp(network_t n, const int *outcomes)
+{
+  int i, j;
+  for (i = 0; i < n->n_node; i++)
+    for (j = 0; j < n->n_outcome; j++)
+      n->outcome[i][j] = outcomes[j*n->n_node+i];
+}
 
 void network_delete(network_t n)
 {
@@ -107,16 +164,7 @@ void network_delete(network_t n)
   int_array2D_delete(n->outcome);
 }
 
-static int intcmp(const void *a, const void *b)
-{
-  if (*(const int *) a < *(const int *) b)
-    return -1;
-  if (*(const int *) a > *(const int *) b)
-    return 1;
-  return 0;
-}
-
-void network_write(FILE *f, const network_t n)
+void network_write_to_file(FILE *f, const network_t n)
 {
   int i;
   for (i = 0; i < n->n_node; i++) {
@@ -223,6 +271,16 @@ static int most_probable_state(const experiment_t e, int i)
 static double score_for_most_probable_state(const experiment_t e, int j)
 {
   return score_for_state(e,j,most_probable_state(e,j));
+}
+
+static trajectory_t trajectories_new(int n)
+{
+  return (trajectory_t) safe_malloc(n*sizeof(struct trajectory));
+}
+
+static void trajectories_delete(trajectory_t t)
+{
+  free(t);
 }
 
 static void init_trajectory(trajectory_t t, const experiment_t e, int n_node)
@@ -365,61 +423,66 @@ double lowest_possible_score(const experiment_set_t eset)
   return s;
 }
 
-void network_advance_until_repetition(const network_t n, const experiment_t e, trajectory_t t)
+void network_advance_until_repetition(const network_t n, const experiment_t e, trajectory_t t, int max_states)
 {
   init_trajectory(t, e, n->n_node);
   int i;
-  for (i = 1; i < MAX_STATES && !repetition_found(t); i++) {
+  for (i = 1; i < max_states && !repetition_found(t); i++) {
     advance(n,t,i);
     check_for_repetition(t,i);
   }
 }
 
-void network_write_response_as_target_data(FILE *f, network_t n, const experiment_set_t e)
+void network_write_response_as_target_data(FILE *f, network_t n, const experiment_set_t e, int max_states)
 {
   const int n_node = n->n_node;
   if (n_node != e->n_node)
-    die("network_write_response_from_experiment_set: network has %d nodes, experiment set has %d nodes",
+    die("network_write_response_as_target_data: network has %d nodes, experiment set has %d nodes",
 	n_node, e->n_node);
   fprintf(f, "i_exp, i_node, outcome, value, is_perturbation\n");
-  struct trajectory traj;
+  trajectory_t trajectories = trajectories_new(e->n_experiment);
   int i_exp;
   for (i_exp = 0; i_exp < e->n_experiment; i_exp++) {
-    network_advance_until_repetition(n, &e->experiment[i_exp], &traj);
+    trajectory_t traj = &trajectories[i_exp];
+    network_advance_until_repetition(n, &e->experiment[i_exp], traj, max_states);
     int i_node;
     for (i_node = 0; i_node < n_node; i_node++) {
       int i_outcome;
       for (i_outcome = -1; i_outcome <= 1; i_outcome++)
 	fprintf(f, "%d, %d, %d, %.1f, %d\n",
 		i_exp, i_node, i_outcome,
-		fabs((double) traj.steady_state[i_node] - (double) i_outcome),
-		traj.is_persistent[i_node] && traj.steady_state[i_node] == i_outcome);
+		fabs((double) traj->steady_state[i_node] - (double) i_outcome),
+		traj->is_persistent[i_node] && traj->steady_state[i_node] == i_outcome);
     }
   }
+  trajectories_delete(trajectories);
 }
 
-void network_write_response_from_experiment_set(FILE *f, network_t n, const experiment_set_t e)
+void network_write_response_from_experiment_set(FILE *f, network_t n, const experiment_set_t e, int max_states)
 {
   const int n_node = n->n_node;
   if (n_node != e->n_node)
     die("network_write_response_from_experiment_set: network has %d nodes, experiment set has %d nodes",
 	n_node, e->n_node);
   int i;
-  struct trajectory traj;
+  trajectory_t trajectories = trajectories_new(e->n_experiment);
   for (i = 0; i < e->n_experiment; i++) {
+    trajectory_t traj = &trajectories[i];
     fprintf(f, "experiment %d:\n", i);
-    network_advance_until_repetition(n, &e->experiment[i], &traj);
-    write_repetition(f,&traj);
+    network_advance_until_repetition(n, &e->experiment[i], traj, max_states);
+    write_repetition(f,traj);
     fprintf(f, "\n");
   }
   fprintf(f, "Lowest possible score: %g\n", lowest_possible_score(e));
   fprintf(f, "Most probable and predicted steady states:\n");
   for (i = 0; i < e->n_experiment; i++) {
+    trajectory_t traj = &trajectories[i];
     write_most_probable(f, &e->experiment[i], n_node);
-    network_advance_until_repetition(n, &e->experiment[i], &traj);
-    write_state(f, traj.steady_state, n_node);
+    network_advance_until_repetition(n, &e->experiment[i], traj, max_states);
+    write_state(f, traj->steady_state, n_node);
     fprintf(f, "\n\n");
   }
+  trajectories_delete(trajectories);
 }
 
 static double score_for_trajectory(const experiment_t e, const trajectory_t t)
@@ -435,22 +498,22 @@ static double score_for_trajectory(const experiment_t e, const trajectory_t t)
   return s;
 }
 
-static double score(network_t n, const experiment_set_t eset, trajectory_t traj, double limit)
+static double score(network_t n, const experiment_set_t eset, trajectory_t trajectories, 
+                    double limit, int max_states)
 {
-  double s = 0;
+  double s_tot = 0;
   int i_exp;
-  for (i_exp = 0; i_exp < eset->n_experiment; i_exp++) {
-    const experiment_t e = &eset->experiment[i_exp];
-    network_advance_until_repetition(n, e, traj);
-    if (repetition_found(traj)) {
-      s += score_for_trajectory(e, traj); // * scale_factor(eset)
-      if (s > limit)
-	break;
-    } else {
-      return LARGE_SCORE;
+#pragma omp parallel for
+  for (i_exp = 0; i_exp < eset->n_experiment; i_exp++)
+    if (s_tot <= limit) {
+      const experiment_t e = &eset->experiment[i_exp];
+      trajectory_t traj = &trajectories[i_exp];
+      network_advance_until_repetition(n, e, traj, max_states);
+      const double s = repetition_found(traj) ? score_for_trajectory(e, traj) : limit;
+#pragma omp atomic
+      s_tot += s;
     }
-  }
-  return s;
+  return s_tot;
 }
 
 static void copy_network(network_t to, const network_t from)
@@ -517,8 +580,13 @@ double network_monte_carlo(network_t n,
 			   double T_lo,
 			   double T_hi,
 			   FILE *out,
-			   double target_score)
+                           int n_thread,
+			   double target_score,
+                           unsigned long exchange_interval,
+                           unsigned long adjust_move_size_interval,
+                           int max_states)
 {
+
   const int n_node = n->n_node;
   double T = T_hi;
 #ifdef USE_MPI
@@ -527,7 +595,8 @@ double network_monte_carlo(network_t n,
   MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
   MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   unsigned long exchange_acc = 0, exchange_tries = 0;
-  T = T_lo * pow(T_hi/T_lo, fraction(mpi_rank, mpi_size-1));
+  if (mpi_size > 1)
+    T = T_lo * pow(T_hi/T_lo, fraction(mpi_rank, mpi_size-1));
 #endif
   if (e->n_experiment == 0)
     die("network_monte_carlo: no experiments given");
@@ -535,12 +604,26 @@ double network_monte_carlo(network_t n,
     die("network_monte_carlo: must have at least 2 nodes");
   if (n_node != e->n_node)
     die("network_monte_carlo: network has %d nodes, but experiment set has %d nodes", n_node, e->n_node);
-  struct trajectory traj;
-  double s = score(n,e,&traj,HUGE_VAL), s_best = s;
-  fprintf(out, "number of steps: %lu\n", n_cycles);
-  fprintf(out, "initial temperature: %g\n", T);
-  fprintf(out, "target score: %g\n", target_score);
-  fprintf(out, "initial score: %g\n", s);
+  trajectory_t trajectories = trajectories_new(e->n_experiment);
+  double s = score(n,e,trajectories,HUGE_VAL,max_states), s_best = s;
+#ifdef USE_MPI
+  fprintf(out, "Process %d of %d\n", mpi_rank, mpi_size);
+#endif
+
+#ifdef _OPENMP
+  omp_set_num_threads(n_thread);
+#pragma omp parallel
+  n_thread = omp_get_num_threads();
+#endif
+
+  fprintf(out, "Number of threads per process: %d\n", n_thread);
+  fprintf(out, "Number of steps: %lu\n", n_cycles);
+  fprintf(out, "Initial temperature: %g\n", T);
+  fprintf(out, "Target score: %g\n", target_score);
+  fprintf(out, "Exchange interval: %lu\n", exchange_interval);
+  fprintf(out, "Adjust move size interval: %lu\n", adjust_move_size_interval);
+  fprintf(out, "Max states: %d\n", max_states);
+  fprintf(out, "Initial score: %g\n", s);
   fprintf(out, "\n");
   fflush(out);
   struct network best;
@@ -552,10 +635,11 @@ double network_monte_carlo(network_t n,
   unsigned long outcome_acc = 0, outcome_tries = 0, outcome_moves = 1;
   unsigned long i;
   for (i = 1; i <= n_cycles; i++) {
-#ifndef USE_MPI
-    /* if no MPI available, do annealing instead of replica exchange */
-    T = T_hi * pow(T_lo/T_hi, fraction(i-1, n_cycles-1));
+#ifdef USE_MPI
+    if (mpi_size == 1)
 #endif
+    /* if no MPI available or only one process, do simulated annealing */
+      T = T_hi * pow(T_lo/T_hi, fraction(i-1, n_cycles-1));
     copy_network(&t0, n);
     unsigned long j;
     const int is_parent_move = (i % 2) && n->n_parent < n->n_node - 1;
@@ -563,55 +647,46 @@ double network_monte_carlo(network_t n,
       parent_tries++;
       for (j = 0; j < parent_moves; j++) {
 	const int k = random_int_inclusive(0, n_node - 1); /* which node to change */
-	int pnew;
-      try_another_parent:
-	pnew = random_int_inclusive(0, n_node - 1); /* new parent */
-	if (pnew == k)
-	  goto try_another_parent;
-	int ip;
-	for (ip = 0; ip < n->n_parent; ip++)
-	  if (pnew == n->parent[k][ip])
-	    goto try_another_parent;
-	n->parent[k][random_int_inclusive(0, n->n_parent - 1)] = pnew;
-	qsort(&n->parent[k][0], n->n_parent, sizeof(int), intcmp);
+      	n->parent[k][random_int_inclusive(0, n->n_parent - 1)] = 
+          random_parent(k, n->n_node, n->n_parent, n->parent[k]);
+      	qsort(&n->parent[k][0], n->n_parent, sizeof(int), intcmp);
       }
     } else { /* change outcomes */
       outcome_tries++;
       const int i_all_parents_unperturbed = (n->n_outcome - 1)/2;
       for (j = 0; j < outcome_moves; j++) {
 	const int k = random_int_inclusive(0, n_node - 1);
-	/* change outcomes */
-	if (n->n_parent > 0) {
-	  int i_outcome;
-	try_another_outcome:
-	  i_outcome = random_int_inclusive(0, n->n_outcome - 1);
-	  if (i_outcome == i_all_parents_unperturbed)
-	    goto try_another_outcome;
-	  n->outcome[k][i_outcome] = random_int_inclusive(-1,1);
-	}
+      	/* change outcomes */
+      	if (n->n_parent > 0) {
+      	  int i_outcome;
+          do
+	    i_outcome = random_int_inclusive(0, n->n_outcome - 1);
+      	  while (i_outcome == i_all_parents_unperturbed);
+      	  n->outcome[k][i_outcome] = random_outcome();
+      	}
       }
     }
     const double limit = s - T*log(uniform_random_from_0_to_1_exclusive());
-    const double s_new = score(n, e, &traj, limit);
+    const double s_new = score(n, e, trajectories, limit, max_states);
     if (s_new < 0.9*LARGE_SCORE && s_new < limit) { 
       /* accepted */
       if (is_parent_move)
-	parent_acc++;
+	      parent_acc++;
       else
-	outcome_acc++;
+	      outcome_acc++;
       s = s_new;
       if (s < s_best) {
-	s_best = s;
-	copy_network(&best, n);
+	      s_best = s;
+	      copy_network(&best, n);
       }
     } else {
       /* rejected */
       copy_network(n, &t0);
     }
 #ifdef USE_MPI
-    const int try_exchange = i % EXCHANGE_INTERVAL == 0;
+    const int try_exchange = (mpi_size > 1) && (i % exchange_interval == 0);
     if (try_exchange) {
-      if ((mpi_rank + i/EXCHANGE_INTERVAL) % 2) {
+      if ((mpi_rank + i/exchange_interval) % 2) {
 	if (mpi_rank < mpi_size - 1) {
 	  /* Try an exchange with higher-T neighbor */
 	  const int r1 = mpi_rank + 1;
@@ -679,7 +754,7 @@ double network_monte_carlo(network_t n,
     if (stop)
       break;
     /* adjust number of moves */
-    if (parent_tries == ADJUST_MOVE_SIZE_INTERVAL) { 
+    if (parent_tries == adjust_move_size_interval) { 
       const double f = fraction(parent_acc, parent_tries);
       if (f > 0.5 && parent_moves < n_node)
 	parent_moves++;
@@ -688,7 +763,7 @@ double network_monte_carlo(network_t n,
       parent_tries = 0;
       parent_acc = 0;
     }
-    if (outcome_tries == ADJUST_MOVE_SIZE_INTERVAL) {
+    if (outcome_tries == adjust_move_size_interval) {
       const double f = fraction(outcome_acc, outcome_tries);
       if (f > 0.5)
 	outcome_moves++;
@@ -701,5 +776,7 @@ double network_monte_carlo(network_t n,
   copy_network(n, &best);
   network_delete(&best);
   network_delete(&t0);
+  trajectories_delete(trajectories);
+
   return s_best;
 }

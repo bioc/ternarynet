@@ -7,9 +7,9 @@
 extern "C" {
 #endif
 
-#define MAX_NODES 100
-#define MAX_EXPERIMENTS 300
-#define MAX_STATES 10
+#define MAX_NODES 10000
+#define MAX_EXPERIMENTS 10000
+#define MAX_STATES_LIMIT 200
 
   typedef struct network 
   {
@@ -19,7 +19,13 @@ extern "C" {
   } *network_t;
  
   void network_init(network_t, int n_node, int max_parents);
-  void network_write(FILE *, const network_t);
+  void network_randomize_parents(network_t);
+  void network_randomize_outcomes(network_t);
+  void network_set_outcomes_to_null(network_t);
+  void network_write_to_file(FILE *, const network_t);
+  void network_write_to_intp(const network_t, int *parent, int *outcome);
+  void network_read_parents_from_intp(network_t, const int *parents);
+  void network_read_outcomes_from_intp(network_t, const int *outcomes);
   void network_delete(network_t);
 
   typedef struct experiment
@@ -39,7 +45,7 @@ extern "C" {
     int n_node;
     int repetition_start, repetition_end;
     int is_persistent[MAX_NODES];
-    int state[MAX_STATES][MAX_NODES];
+    int state[MAX_STATES_LIMIT][MAX_NODES];
     int steady_state[MAX_NODES];
   } *trajectory_t;
 
@@ -55,9 +61,9 @@ extern "C" {
 			   const double *val,
 			   const int *is_perturbation);
 
-  void network_write_response_from_experiment_set(FILE *, network_t, const experiment_set_t);
-  void network_write_response_as_target_data(FILE *, network_t, const experiment_set_t);
-  void network_advance_until_repetition(const network_t, const experiment_t, trajectory_t t);
+  void network_write_response_from_experiment_set(FILE *, network_t, const experiment_set_t, int max_states);
+  void network_write_response_as_target_data(FILE *, network_t, const experiment_set_t, int max_states);
+  void network_advance_until_repetition(const network_t, const experiment_t, trajectory_t t, int max_states);
   
   double lowest_possible_score(const experiment_set_t);
 
@@ -68,7 +74,11 @@ extern "C" {
 			     double T_lo,
 			     double T_hi,
 			     FILE *out,
-			     double target_score);
+                             int n_thread,
+			     double target_score,
+                             unsigned long exchange_interval,
+                             unsigned long adjust_move_size_interval,
+                             int max_states);
 
   unsigned three_to_the(unsigned n);
 

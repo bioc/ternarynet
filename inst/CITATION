@@ -8,5 +8,22 @@ citEntry(entry = "Article",
          pages = "47",
          publisher = "Berkeley Electronic Press",
          textVersion = "Almudevar A, McCall MN, McMurray H, Land H (2011). Fitting Boolean Networks from Steady State Perturbation Data, Statistical Applications in Genetics and Molecular Biology, 10(1): Article 47.",
-	 header = "For use of the ternarynet package, please cite:"
+	 header = "For use of the original simulated annealing algorithm, please cite:"
 )
+
+citEntry(entry = "Article",
+         author = "McMurray, Helene R and Ambeskovic, Aslihan and Newman, Laurel A and Aldersley, Jordan and Balakrishnan, Vijaya and Smith, Bradley and Stern, Harry A and Land, Hartmut and McCall, Matthew N",
+         title = "Gene network modeling via TopNet reveals robust epistatic interactions between functionally diverse tumor critical mediator genes",
+         journal = "bioRxiv",
+         volume = "",
+         number = "",
+         year = "2020",
+         pages = "",
+         publisher = "Cold Spring Harbor Laboratory",
+         textVersion = "Gene network modeling via TopNet reveals robust epistatic interactions between functionally diverse tumor critical mediator genes (2020). Helene R. McMurray, Aslihan Ambeskovic, Laurel A. Newman, Jordan Aldersley, Vijaya Balakrishnan, Bradley Smith, Harry A. Stern, Hartmut Land, Matthew N. McCall
+bioRxiv; doi: https://doi.org/10.1101/2020.10.07.328542",
+	 header = "For use of the replica exchange algorithm, please cite:"
+)
+
+
+
