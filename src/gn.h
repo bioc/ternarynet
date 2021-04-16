@@ -7,8 +7,8 @@
 extern "C" {
 #endif
 
-#define MAX_NODES 10000
-#define MAX_EXPERIMENTS 10000
+#define MAX_NODES 200
+#define MAX_EXPERIMENTS 200
 #define MAX_STATES_LIMIT 200
 
   typedef struct network 
