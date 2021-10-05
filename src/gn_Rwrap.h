@@ -6,8 +6,6 @@
 
 SEXP is_MPI_available();
 
-SEXP max_nodes_Rwrap();
-
 SEXP network_monte_carlo_Rwrap(SEXP R_n,
 			       SEXP R_n_node,
 			       SEXP R_i_exp, 

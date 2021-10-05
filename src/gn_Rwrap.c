@@ -19,10 +19,6 @@ SEXP is_MPI_available()
 #endif
 }
 
-SEXP max_nodes_Rwrap() { 
-  return Rf_ScalarInteger(MAX_NODES); 
-}
-
 static int SEXP_to_int(SEXP x) { return Rf_asInteger(x); }
 static int *SEXP_to_intp(SEXP x) { return INTEGER(x); }
 static double SEXP_to_double(SEXP x) { return Rf_asReal(x); }
@@ -139,7 +135,7 @@ SEXP network_monte_carlo_Rwrap(SEXP R_n,
   network_write_to_intp(&net, SEXP_to_intp(R_parents), SEXP_to_intp(R_outcomes));
 
   SEXP R_trajectories = PROTECT(NEW_LIST(e.n_experiment));
-  trajectory_t t = trajectories_new(e.n_experiment, max_states);
+  trajectory_t t = trajectories_new(e.n_experiment, max_states, n_node);
   int i;
   for (i = 0; i < e.n_experiment; i++) {
     network_advance_until_repetition(&net, &e.experiment[i], &t[i], max_states);

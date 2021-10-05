@@ -21,6 +21,7 @@
 #include "array.h"
 
 ARRAY_DEFINITION(int)
+ARRAY_DEFINITION(double)
 
 #ifdef SIMPLE_EXAMPLE
 
