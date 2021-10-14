@@ -100,7 +100,6 @@ extern "C" {
 #endif
 
   ARRAY_DECLARATION(int);
-  ARRAY_DECLARATION(double);
 
 #ifdef __cplusplus
 }

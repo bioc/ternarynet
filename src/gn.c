@@ -275,28 +275,22 @@ trajectory_t trajectories_new(int ntraj, int max_states, int n_node)
 {
   trajectory_t t = (trajectory_t) safe_malloc(ntraj*sizeof(struct trajectory));
   int i;
-  for (i = 0; i < ntraj; i++) {
-    t[i].n_node = n_node;
-    t[i].is_persistent = int_array_new(n_node);
+  for (i = 0; i < ntraj; i++)
     t[i].state = int_array2D_new(max_states, n_node);
-    t[i].steady_state = int_array_new(n_node);
-  }
   return t;
 }
 
 void trajectories_delete(trajectory_t t, int ntraj)
 {
   int i;
-  for (i = 0; i < ntraj; i++) {
-    int_array_delete(t[i].is_persistent);
+  for (i = 0; i < ntraj; i++)
     int_array2D_delete(t[i].state);
-    int_array_delete(t[i].steady_state);
-  } 
   free(t);
 }
 
-static void init_trajectory(trajectory_t t, const experiment_t e)
+static void init_trajectory(trajectory_t t, const experiment_t e, int n_node)
 {
+  t->n_node = n_node;
   int i;
   for (i = 0; i < t->n_node; i++) {
     t->is_persistent[i] = 0;
@@ -320,7 +314,7 @@ void experiment_set_init(experiment_set_t e,
 {
   e->n_experiment = 0;
   e->n_node = 0;
-  int i;
+  int i, j_exp;
   for (i = 0; i < n; i++) {
     if (i_exp[i] >= e->n_experiment)
       e->n_experiment = i_exp[i] + 1;
@@ -328,12 +322,8 @@ void experiment_set_init(experiment_set_t e,
       e->n_node = i_node[i] + 1;
   }
   e->experiment = (experiment_t) safe_malloc(e->n_experiment * sizeof(struct experiment));
-  for (i = 0; i < e->n_experiment; i++) {
-    experiment_t en = &e->experiment[i];
-    en->n_perturbed = 0;
-    en->score = double_array2D_new(e->n_node, 3);
-    en->perturbed = int_array_new(e->n_node);
-  }
+  for (j_exp = 0; j_exp < e->n_experiment; j_exp++)
+    e->experiment[j_exp].n_perturbed = 0;
   for (i = 0; i < n; i++) {
     experiment_t en = &e->experiment[i_exp[i]];
     set_score_for_state(en, i_node[i], outcome[i], val[i]);
@@ -344,11 +334,6 @@ void experiment_set_init(experiment_set_t e,
 
 void experiment_set_delete(experiment_set_t e)
 {
-  int i;
-  for (i = 0; i < e->n_experiment; i++) {
-    double_array2D_delete(e->experiment[i].score);
-    int_array_delete(e->experiment[i].perturbed);
-  }   
   free(e->experiment);
 }
 
@@ -420,7 +405,7 @@ double lowest_possible_score(const experiment_set_t eset)
 
 void network_advance_until_repetition(const network_t n, const experiment_t e, trajectory_t t, int max_states)
 {
-  init_trajectory(t, e);
+  init_trajectory(t, e, n->n_node);
   int i;
   for (i = 1; i < max_states && !repetition_found(t); i++) {
     advance(n,t,i);

@@ -19,6 +19,10 @@ SEXP is_MPI_available()
 #endif
 }
 
+SEXP max_nodes_Rwrap() { 
+  return Rf_ScalarInteger(MAX_NODES); 
+}
+
 static int SEXP_to_int(SEXP x) { return Rf_asInteger(x); }
 static int *SEXP_to_intp(SEXP x) { return INTEGER(x); }
 static double SEXP_to_double(SEXP x) { return Rf_asReal(x); }

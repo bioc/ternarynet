@@ -33,7 +33,7 @@ callNetworkMonteCarloRwrap <- function(i, n,
 parallelFitCheckArgs <- function(i_exp, i_node, outcome, value,
     is_perturbation, T_lo, T_hi, max_parents, exchange_interval,
     adjust_move_size_interval, init_parents,
-    init_outcomes, n_thread, n_node,
+    init_outcomes, n_thread, n_node, max_nodes,
     max_states, callback)
 {
     stopifnot(is.integer(i_exp))
@@ -50,6 +50,7 @@ parallelFitCheckArgs <- function(i_exp, i_node, outcome, value,
     stopifnot(is.null(init_parents) || is.integer(init_parents));
     stopifnot(is.null(init_outcomes) || is.integer(init_outcomes));
     stopifnot(n_thread >= 1)
+    stopifnot(n_node <= max_nodes)
     stopifnot(is.null(callback) || is.function(callback));
 }
 
@@ -68,10 +69,11 @@ parallelFit <- function(experiment_set,
         is_perturbation <- as.integer(is_perturbation)
     n <- nrow(experiment_set)
     n_node <- max(i_node)+1
+    max_nodes = .Call("max_nodes_Rwrap")
     parallelFitCheckArgs(i_exp, i_node, outcome, value,
         is_perturbation, T_lo, T_hi, max_parents, exchange_interval,
         adjust_move_size_interval, init_parents,
-        init_outcomes, n_thread, n_node,
+        init_outcomes, n_thread, n_node, max_nodes,
         max_states, callback)
     if (.Call("is_MPI_available") &&
         requireNamespace("BiocParallel") && 

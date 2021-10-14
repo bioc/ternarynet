@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+#define MAX_NODES 200
+
   typedef struct network 
   {
     int n_node, n_parent, n_outcome;
@@ -26,8 +28,8 @@ extern "C" {
 
   typedef struct experiment
   {
-    double **score; /* n_node x 3 */
-    int n_perturbed, *perturbed; /* n_node */
+    double score[MAX_NODES][3];
+    int n_perturbed, perturbed[MAX_NODES];
   } *experiment_t;
   
   typedef struct experiment_set
@@ -40,9 +42,9 @@ extern "C" {
   {
     int n_node;
     int repetition_start, repetition_end;
-    int *is_persistent; /* n_node */
-    int **state; /* max_states x n_node */
-    int *steady_state; /* n_node */
+    int is_persistent[MAX_NODES];
+    int **state; /* max_states x MAX_NODES */
+    int steady_state[MAX_NODES];
   } *trajectory_t;
 
   trajectory_t trajectories_new(int ntraj, int max_states, int n_node);
