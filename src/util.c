@@ -23,7 +23,7 @@ void die(const char *fmt, ...)
   }
   va_end(argp);
   char buf[1024];
-  sprintf(buf, "%s\n", ret);
+  snprintf(buf, sizeof(buf), "%s\n", ret);
   free(ret);
   error("%s", buf);
 }
