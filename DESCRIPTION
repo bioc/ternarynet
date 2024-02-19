@@ -1,6 +1,6 @@
 Package: ternarynet
-Version: 1.47.1
-Date: 2024-02-15
+Version: 1.47.2
+Date: 2024-02-19
 Title: Ternary Network Estimation
 Description: Gene-regulatory network (GRN) modeling seeks to infer 
         dependencies between genes and thereby provide insight into 
