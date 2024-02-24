@@ -96,9 +96,9 @@ SEXP network_monte_carlo_Rwrap(SEXP R_n,
 #ifdef USE_MPI
   int rank = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  sprintf(fname, "%s.%d", outfile, rank);
+  snprintf(fname, sizeof(fname), "%s.%d", outfile, rank);
 #else
-  sprintf(fname, "%s", outfile);
+  snprintf(fname, sizeof(fname), "%s", outfile);
 #endif
 
   FILE *f = safe_fopen(fname, "w");
